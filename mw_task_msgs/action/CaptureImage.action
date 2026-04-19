@@ -1,0 +1,12 @@
+# Goal
+string camera_id
+string save_path
+---
+# Result
+string image_path
+bool succeeded
+string message
+---
+# Feedback
+string status
+float64 progress

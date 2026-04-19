@@ -1,0 +1,6 @@
+string motor_id
+float64 target_position
+float64 max_velocity
+---
+bool accepted
+string message

@@ -1,0 +1,28 @@
+# Closed-loop odom-frame drive to a 2D target (x, y, yaw). Implemented
+# by mw_skill_library/drive_to_pose_server as a 3-phase P-controller:
+#   (1) rotate in-place to face (target_x, target_y)
+#   (2) drive straight until distance < xy_tolerance
+#   (3) rotate in-place to match target_yaw
+# Coordinates are in /odom frame (no map dependency, no nav2).
+
+# Goal
+float64 target_x
+float64 target_y
+float64 target_yaw
+float64 xy_tolerance 0.15
+float64 yaw_tolerance 0.1
+float64 max_linear_velocity 0.22
+float64 max_angular_velocity 0.8
+---
+# Result
+float64 final_x
+float64 final_y
+float64 final_yaw
+bool succeeded
+string message
+---
+# Feedback
+float64 current_x
+float64 current_y
+float64 current_yaw
+float64 distance_remaining

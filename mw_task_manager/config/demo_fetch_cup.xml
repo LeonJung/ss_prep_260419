@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Phase 1 demo Job: "fetch_cup"
+  Flattened (no SubTree references yet) — Phase 2 Task Repository will
+  introduce XML-level composition so each SubJob lives in its own file.
+
+  Domain mapping:
+    Job        = root BehaviorTree
+    SubJob     = named Sequence immediately under root
+    Step       = nested Sequence inside a SubJob
+    SubStep    = leaf (MoveMotor / CaptureImage) calling a ROS 2 action
+-->
+<root BTCPP_format="4">
+  <BehaviorTree ID="FetchCup">
+    <Sequence name="Job_FetchCup">
+      <Sequence name="SubJob_GoToKitchen">
+        <MoveMotor name="base_x_move"
+                   motor_id="base_x"
+                   target_position="3.5"
+                   max_velocity="0.5"/>
+        <MoveMotor name="base_yaw_move"
+                   motor_id="base_yaw"
+                   target_position="1.57"
+                   max_velocity="0.5"/>
+      </Sequence>
+      <Sequence name="SubJob_PickCup">
+        <CaptureImage name="head_capture"
+                      camera_id="head_rgb"
+                      save_path="/tmp/cup.jpg"/>
+        <MoveMotor name="arm_shoulder_move"
+                   motor_id="arm_shoulder"
+                   target_position="0.3"
+                   max_velocity="0.5"/>
+        <MoveMotor name="arm_gripper_close"
+                   motor_id="arm_gripper"
+                   target_position="0.0"
+                   max_velocity="0.2"/>
+      </Sequence>
+    </Sequence>
+  </BehaviorTree>
+</root>

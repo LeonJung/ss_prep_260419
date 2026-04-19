@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>mw_web_gui</name>
+  <version>0.0.1</version>
+  <description>Web GUI (Vue 3 + VueFlow) for mw Task Manager — live BT monitor, robot state, task dispatch</description>
+  <maintainer email="jung.ryuwoon@gmail.com">Ryuwoon Jung</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>foxglove_bridge</exec_depend>
+  <exec_depend>mw_bringup</exec_depend>
+  <exec_depend>mw_task_manager</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

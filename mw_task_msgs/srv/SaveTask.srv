@@ -1,0 +1,6 @@
+string task_id
+string xml_content
+string commit_message
+---
+bool success
+string message

@@ -1,0 +1,6 @@
+string camera_id
+string save_path
+---
+bool success
+string image_path
+string message

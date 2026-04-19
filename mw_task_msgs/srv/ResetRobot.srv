@@ -1,0 +1,6 @@
+# Reset all motor positions/velocities to 0, clear all faults, restore
+# cameras to available, reset battery to 1.0. Used by self-tests to start
+# each scenario from a known state.
+---
+bool success
+string message

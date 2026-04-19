@@ -1,0 +1,24 @@
+/* VueFlow default styles — must come before @tailwind per CSS @import rules */
+@import '@vue-flow/core/dist/style.css';
+@import '@vue-flow/core/dist/theme-default.css';
+@import '@vue-flow/controls/dist/style.css';
+@import '@vue-flow/minimap/dist/style.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+}
+
+.vue-flow__node {
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+}

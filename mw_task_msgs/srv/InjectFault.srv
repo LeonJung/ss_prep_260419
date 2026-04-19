@@ -1,0 +1,15 @@
+# target examples:
+#   "motor:base_x"     apply fault to a specific motor
+#   "camera:head_rgb"  apply fault to a specific camera
+#   "battery"          battery override (use 'parameter' as level 0.0 - 1.0)
+# kind examples:
+#   "stuck"        motor no longer tracks target (position frozen)
+#   "dead"         motor/camera becomes unreachable and reports STATUS_DEAD
+#   "timeout"      simulate slow response on next request
+#   "clear"        remove any injected fault
+string target
+string kind
+float64 parameter
+---
+bool applied
+string message

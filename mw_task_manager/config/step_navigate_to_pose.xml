@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ==========================================================================
+  Step template: "NavigateTo(x, y, yaw)"
+  ==========================================================================
+
+  Domain role:
+    SubStep  = NavigateToPose leaf (wraps nav2 /navigate_to_pose action)
+    Step     = THIS SUBTREE        — robot-level meaningful unit
+                                      ("go to a point, wait, arrive")
+    SubJob   = caller's Sequence of multiple Steps
+    Job      = root BT
+
+  Current composition is minimal (single SubStep). It is intentionally
+  wrapped as a SubTree so it can be extended without changing callers.
+  Future additions inside this Step may include:
+    - pre-check SubStep (e.g. IsCollisionFree?, IsBatteryOk?)
+    - post-SubStep (e.g. PublishArrivedStatus, RecordOdometry)
+    - retry / fallback decorator
+
+  Ports exposed by this SubTree:
+    x     (double, m)     target position X in frame
+    y     (double, m)     target position Y in frame
+    yaw   (double, rad)   target orientation yaw
+    frame (string)        target frame_id (default "map")
+  -->
+<root BTCPP_format="4">
+  <BehaviorTree ID="NavigateTo">
+    <NavigateToPose name="nav_to_point"
+                    x="{x}" y="{y}" yaw="{yaw}" frame="{frame}"/>
+  </BehaviorTree>
+</root>

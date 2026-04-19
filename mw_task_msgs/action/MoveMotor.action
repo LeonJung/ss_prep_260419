@@ -1,0 +1,13 @@
+# Goal
+string motor_id
+float64 target_position
+float64 max_velocity 1.0
+---
+# Result
+float64 final_position
+bool succeeded
+string message
+---
+# Feedback
+float64 current_position
+float64 progress

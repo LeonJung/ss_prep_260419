@@ -1,0 +1,11 @@
+# Execute a stored Task by id. The task_manager loads the XML from
+# the repository, runs the BT until completion, and reports progress
+# via feedback.
+string task_id
+---
+bool succeeded
+string message
+string tree_name
+---
+string current_node_name
+float64 elapsed_sec

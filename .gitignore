@@ -1,0 +1,26 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+
+# Node / frontend build (kept only inside mw_web_gui/frontend)
+node_modules/
+dist/
+.vite/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# OS / tmp
+*.log
+*.tmp
+
+# Local env
+.env
+.env.local
