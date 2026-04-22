@@ -29,7 +29,8 @@ def generate_launch_description():
         'foxglove_port', default_value='8765',
         description='foxglove_bridge WebSocket port')
     subjob_modules_arg = DeclareLaunchArgument(
-        'subjob_modules', default_value='[]',
+        'subjob_modules',
+        default_value="['mw_skill_states', 'mw_hfsm_examples']",
         description='List of Python modules registering SubJobs',
     )
 

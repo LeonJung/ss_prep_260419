@@ -39,7 +39,8 @@ def generate_launch_description():
     tb3_model_env = SetEnvironmentVariable('TURTLEBOT3_MODEL', 'waffle')
 
     subjob_modules_arg = DeclareLaunchArgument(
-        'subjob_modules', default_value='[]',
+        'subjob_modules',
+        default_value="['mw_skill_states', 'mw_hfsm_examples']",
         description='List of Python modules registering SubJobs',
     )
     executor_delay_arg = DeclareLaunchArgument(

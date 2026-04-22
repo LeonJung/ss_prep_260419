@@ -22,7 +22,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     subjob_modules_arg = DeclareLaunchArgument(
         'subjob_modules',
-        default_value='[]',
+        default_value="['mw_skill_states', 'mw_hfsm_examples']",
         description='List of Python modules (as a YAML list) that register '
                     'SubJobs via @register_state',
     )

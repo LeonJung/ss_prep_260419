@@ -30,8 +30,12 @@ def generate_launch_description():
     fg_port = DeclareLaunchArgument(
         'foxglove_port', default_value='8765',
         description='foxglove_bridge WebSocket port')
+    # Default to importing the shipped state + example packages so
+    # JSON-authored SubJobs can reference DriveToPoseState / MoveMotorState
+    # / CaptureImageState and the VisitThreePoints class is available by id.
     subjob_modules_arg = DeclareLaunchArgument(
-        'subjob_modules', default_value='[]',
+        'subjob_modules',
+        default_value="['mw_skill_states', 'mw_hfsm_examples']",
         description='List of Python modules registering SubJobs',
     )
 
