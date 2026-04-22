@@ -13,11 +13,16 @@ from .userdata import Userdata
 from .state import State, StateRegistry, register_state
 from .state_machine import StateMachine
 from .behavior_sm import BehaviorSM
+from .parallel import Parallel, Region
+from .decorators import RetryDecorator
 
 __all__ = [
     'State',
     'StateMachine',
     'BehaviorSM',
+    'Parallel',
+    'Region',
+    'RetryDecorator',
     'StateRegistry',
     'register_state',
     'Userdata',
