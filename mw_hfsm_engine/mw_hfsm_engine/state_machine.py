@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Union
 
-from .exceptions import HsmError, SelfIterationError, TransitionError
+from .exceptions import HfsmError, SelfIterationError, TransitionError
 from .state import State, StateRegistry
 from .userdata import Userdata
 
@@ -63,7 +63,7 @@ class StateMachine(State):
             one of self.outcomes).
         """
         if name in self._children:
-            raise HsmError(f'child "{name}" already added')
+            raise HfsmError(f'child "{name}" already added')
 
         state = self._materialize(state_ref)
 
@@ -85,14 +85,14 @@ class StateMachine(State):
             return ref
         if isinstance(ref, type):
             if not issubclass(ref, State):
-                raise HsmError(
+                raise HfsmError(
                     f'class {ref.__name__} is not a State subclass'
                 )
             return ref()
         if isinstance(ref, str):
             klass = StateRegistry.resolve(ref)
             return klass()
-        raise HsmError(
+        raise HfsmError(
             f'state_ref must be State | class | id str, got {type(ref).__name__}'
         )
 
@@ -100,7 +100,7 @@ class StateMachine(State):
     def execute(self, userdata: Userdata) -> str:
         """Run children until a transition produces a terminal outcome."""
         if self._initial_state is None:
-            raise HsmError(
+            raise HfsmError(
                 f'{type(self).__name__} has no child states; '
                 f'call add() at least once before execute()'
             )
@@ -115,7 +115,7 @@ class StateMachine(State):
         while True:
             visits += 1
             if visits > visit_cap:
-                raise HsmError(
+                raise HfsmError(
                     f'{type(self).__name__}: exceeded {visit_cap} child '
                     f'invocations — possible infinite transition loop'
                 )

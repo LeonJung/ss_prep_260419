@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .exceptions import HsmError
+from .exceptions import HfsmError
 from .state_machine import StateMachine
 from .userdata import Userdata
 
@@ -51,7 +51,7 @@ class BehaviorSM(StateMachine):
 
         missing = [p for p in self.behavior_parameters if p not in behavior_parameter]
         if missing:
-            raise HsmError(
+            raise HfsmError(
                 f'{type(self).__name__}: missing behavior_parameter(s): {missing}'
             )
 

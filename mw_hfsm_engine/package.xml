@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>mw_hsm_engine</name>
+  <name>mw_hfsm_engine</name>
   <version>0.0.1</version>
   <description>Self-built Hierarchical FSM engine for mw Task Manager (SubJob / Step / SubStep), pure Python, ROS 2 independent</description>
   <maintainer email="jung.ryuwoon@gmail.com">Ryuwoon Jung</maintainer>

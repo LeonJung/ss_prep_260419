@@ -7,14 +7,14 @@ Covers:
 - Nested StateMachine (Step inside Step)
 - BehaviorSM.run() with behavior_parameter + userdata_in/out
 - SelfIterationError and TransitionError surface at the right moments
-- Missing behavior_parameter surfaces as HsmError
+- Missing behavior_parameter surfaces as HfsmError
 """
 
 import pytest
 
-from mw_hsm_engine import (
+from mw_hfsm_engine import (
     BehaviorSM,
-    HsmError,
+    HfsmError,
     SelfIterationError,
     State,
     StateMachine,
@@ -282,7 +282,7 @@ def test_behavior_sm_missing_behavior_parameter_raises():
     sj = Needs()
     sj.add('A', Succeeder(tag='A'), transitions={'done': 'done'})
 
-    with pytest.raises(HsmError):
+    with pytest.raises(HfsmError):
         sj.run(behavior_parameter={}, userdata_in={})
 
 
@@ -290,5 +290,5 @@ def test_behavior_sm_empty_raises():
     class Empty(BehaviorSM):
         outcomes = ['done']
 
-    with pytest.raises(HsmError):
+    with pytest.raises(HfsmError):
         Empty().run()

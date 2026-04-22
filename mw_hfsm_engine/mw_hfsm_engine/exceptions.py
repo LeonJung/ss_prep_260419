@@ -1,19 +1,19 @@
-"""Engine exceptions. All inherit from HsmError for catch-all."""
+"""Engine exceptions. All inherit from HfsmError for catch-all."""
 
 
-class HsmError(Exception):
+class HfsmError(Exception):
     """Base exception for all HFSM engine errors."""
 
 
-class TransitionError(HsmError):
+class TransitionError(HfsmError):
     """Raised when a state emits an outcome with no matching transition."""
 
 
-class RegistryError(HsmError):
+class RegistryError(HfsmError):
     """Raised for late-binding resolution failures (unknown ID, etc)."""
 
 
-class SelfIterationError(HsmError):
+class SelfIterationError(HfsmError):
     """Raised when a layer tries to add itself or iterate over itself.
 
     Enforces the core rule: every layer is one invocation, iteration of

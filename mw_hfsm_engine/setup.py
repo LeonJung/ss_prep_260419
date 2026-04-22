@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'mw_hsm_engine'
+package_name = 'mw_hfsm_engine'
 
 setup(
     name=package_name,
