@@ -26,14 +26,20 @@ async function refresh() {
   }
 }
 
-async function dispatch(task_id: string) {
+async function dispatch(subjob_id: string) {
   busy.value = true;
   error.value = '';
   try {
     const resp = await fetch(`${props.dispatchUrl}/dispatch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id }),
+      // behavior_parameter and userdata_in are empty for now — the
+      // per-SubJob parameter editor lands with the spec-loader track.
+      body: JSON.stringify({
+        subjob_id,
+        behavior_parameter: {},
+        userdata_in: {},
+      }),
     });
     if (!resp.ok) {
       throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
@@ -79,7 +85,7 @@ onMounted(() => {
         <span class="font-mono text-sm">{{ t }}</span>
         <button
           @click="dispatch(t)"
-          :disabled="busy || (state.bt?.status === 1)"
+          :disabled="busy || (state.hfsm?.status === 1)"
           class="text-xs px-3 py-1 bg-accent hover:bg-blue-400 text-white rounded disabled:opacity-40"
         >
           dispatch

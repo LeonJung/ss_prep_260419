@@ -14,7 +14,7 @@ import { reactive, readonly } from 'vue';
 import { parse as parseRos2msgDefs } from '@foxglove/rosmsg';
 import { MessageReader } from '@foxglove/rosmsg2-serialization';
 import type {
-  BtExecutionStatus,
+  HfsmExecutionStatus,
   JointState,
   Odometry,
 } from '../types';
@@ -45,7 +45,7 @@ const STATE = reactive({
   url: '',
   lastError: '' as string,
   serverName: '',
-  bt: null as BtExecutionStatus | null,
+  hfsm: null as HfsmExecutionStatus | null,
   joint: null as JointState | null,
   odom: null as Odometry | null,
   motorStatus: null as null | Record<string, unknown>,
@@ -303,7 +303,7 @@ export function useRos() {
   // ---- app-level wiring ----
 
   function wireStandardTopics() {
-    subscribe<BtExecutionStatus>('/mw_bt_status', (v) => { STATE.bt = v; });
+    subscribe<HfsmExecutionStatus>('/mw_hfsm_status', (v) => { STATE.hfsm = v; });
     subscribe<JointState>('/joint_states', (v) => { STATE.joint = v; });
     subscribe<Odometry>('/odom', (v) => { STATE.odom = v; });
     subscribe<{ percentage?: number }>('/battery_state', (v) => {

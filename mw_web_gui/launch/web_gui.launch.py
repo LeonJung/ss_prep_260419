@@ -1,18 +1,20 @@
-"""Full web-GUI stack: emulator + long-lived task_manager + foxglove_bridge.
+"""Full web-GUI stack: emulator + long-lived HFSM executor + foxglove_bridge.
 
 The vite dev server and cloudflared tunnel are started separately from
 scripts/start_web_gui.sh so the cloudflared URL can be captured and
 printed at run time.
 """
 
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+from ament_index_python.packages import get_package_share_directory
 import os
 
 
@@ -28,20 +30,25 @@ def generate_launch_description():
     fg_port = DeclareLaunchArgument(
         'foxglove_port', default_value='8765',
         description='foxglove_bridge WebSocket port')
+    subjob_modules_arg = DeclareLaunchArgument(
+        'subjob_modules', default_value='[]',
+        description='List of Python modules registering SubJobs',
+    )
 
     return LaunchDescription([
         fg_port,
+        subjob_modules_arg,
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(emulator_launch)),
         Node(
             package='mw_task_manager',
-            executable='mw_task_manager_node',
-            name='mw_bt_executor',
+            executable='hfsm_executor',
+            name='mw_hfsm_executor',
             output='screen',
             emulate_tty=True,
             parameters=[{
-                'tick_rate_hz': 10.0,
-                'groot_port': 1667,
+                'subjob_modules': LaunchConfiguration('subjob_modules'),
+                'status_publish_hz': 10.0,
             }],
         ),
         Node(

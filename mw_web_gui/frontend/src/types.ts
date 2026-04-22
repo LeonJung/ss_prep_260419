@@ -2,12 +2,12 @@
 // serialize/deserialize over the foxglove_bridge JSON channel without
 // an autogen pipeline.
 
-export interface BtExecutionStatus {
-  task_id: string;
-  tree_name: string;
-  tree_xml: string;
-  current_node_name: string;
-  status: number; // 0 idle, 1 running, 2 success, 3 failure
+export interface HfsmExecutionStatus {
+  subjob_id: string;
+  spec_json: string;          // full HFSM spec JSON (empty until spec loader lands)
+  active_state: string;       // dot-separated path, e.g. "VisitThreePoints.GO_P2.Drive"
+  userdata_snapshot_json: string;
+  status: number;             // 0 idle, 1 running, 2 success, 3 failure
   start_time: { sec: number; nanosec: number };
   elapsed_sec: number;
 }
@@ -36,7 +36,7 @@ export interface Odometry {
   };
 }
 
-export const BT_STATUS_LABELS = [
+export const HFSM_STATUS_LABELS = [
   'IDLE',
   'RUNNING',
   'SUCCESS',

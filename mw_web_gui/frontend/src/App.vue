@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue';
 import ConnectionStatus from './components/ConnectionStatus.vue';
-import BtStatus from './components/BtStatus.vue';
-import BtTreeView from './components/BtTreeView.vue';
+import HfsmStatus from './components/HfsmStatus.vue';
+import HfsmStateView from './components/HfsmStateView.vue';
 import RobotState from './components/RobotState.vue';
 import TaskList from './components/TaskList.vue';
 import { useRos } from './composables/useRos';
@@ -54,10 +54,10 @@ onMounted(() => {
       class="grid gap-3 md:gap-4 max-w-7xl mx-auto"
       style="grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);"
     >
-      <!-- left column: tree viewer fills width on md+, collapses on small -->
+      <!-- left column: state chart fills width on md+, collapses on small -->
       <div class="space-y-3 md:space-y-4 min-w-0">
-        <BtTreeView />
-        <BtStatus />
+        <HfsmStateView />
+        <HfsmStatus />
       </div>
       <!-- right column: task list + robot state -->
       <aside class="space-y-3 md:space-y-4 min-w-0">

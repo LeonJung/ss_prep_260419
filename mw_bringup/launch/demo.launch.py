@@ -1,13 +1,18 @@
-"""Phase 1 demo launch: 2 mock skill servers + BT executor running demo_fetch_cup.
+"""Basic demo: emulator + skill servers + HFSM executor.
 
-Respawn is enabled now (Layer 1 of the 3-layer lifecycle plan) so even the
-Phase 1 basic action servers survive a crash. Layer 2/3 (LifecycleNode +
-supervisor) land in Phase 3.
+No SubJob is auto-dispatched — bring up the stack, then dispatch a SubJob
+from the CLI or web GUI:
+
+    ros2 launch mw_bringup demo.launch.py
+    # then, in another terminal:
+    ros2 action send_goal /mw_task_manager/execute_sub_job \\
+      mw_task_msgs/action/ExecuteSubJob '{subjob_id: "MySubJob", ...}'
+
+The `subjob_modules` parameter accepts a list of importable Python module
+paths that register SubJobs via @register_state on BehaviorSM subclasses.
+Pass your own via -p subjob_modules:="['my_pkg.my_subjobs']".
 """
 
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 from launch.substitutions import LaunchConfiguration
@@ -15,25 +20,17 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    default_tree = os.path.join(
-        get_package_share_directory('mw_task_manager'),
-        'config',
-        'demo_fetch_cup.xml',
+    subjob_modules_arg = DeclareLaunchArgument(
+        'subjob_modules',
+        default_value='[]',
+        description='List of Python modules (as a YAML list) that register '
+                    'SubJobs via @register_state',
     )
-
-    tree_arg = DeclareLaunchArgument(
-        'tree_xml_path',
-        default_value=default_tree,
-        description='Absolute path to the BT XML Job definition',
-    )
-
-    # Force FastDDS: Zenoh is the Jazzy default but requires a separate
-    # rmw_zenohd router. FastDDS works out of the box for local demos.
     rmw_env = SetEnvironmentVariable('RMW_IMPLEMENTATION', 'rmw_fastrtps_cpp')
 
     return LaunchDescription([
         rmw_env,
-        tree_arg,
+        subjob_modules_arg,
         Node(
             package='mw_robot_emulator',
             executable='virtual_robot',
@@ -73,13 +70,12 @@ def generate_launch_description():
         ),
         Node(
             package='mw_task_manager',
-            executable='mw_task_manager_node',
-            name='mw_bt_executor',
+            executable='hfsm_executor',
+            name='mw_hfsm_executor',
             output='screen',
             parameters=[{
-                'tree_xml_path': LaunchConfiguration('tree_xml_path'),
-                'tick_rate_hz': 10.0,
-                'groot_port': 1667,
+                'subjob_modules': LaunchConfiguration('subjob_modules'),
+                'status_publish_hz': 10.0,
             }],
         ),
     ])

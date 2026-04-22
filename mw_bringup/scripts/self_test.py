@@ -128,7 +128,7 @@ def _preflight_cleanup() -> None:
     patterns = [
         'move_motor_server', 'capture_image_server', 'virtual_robot',
         'mw_task_repository', 'mw_skill_supervisor',
-        'mw_task_manager_node', 'ros2 launch mw_bringup',
+        'hfsm_executor', 'mw_hfsm_executor', 'ros2 launch mw_bringup',
     ]
     for pat in patterns:
         subprocess.run(['pkill', '-9', '-f', pat],

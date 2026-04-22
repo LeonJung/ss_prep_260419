@@ -1,8 +1,26 @@
 <script setup lang="ts">
 /**
- * Live BT tree viewer powered by VueFlow. Parses the XML text carried
- * on /mw_bt_status (field `tree_xml`), builds a tidy top-down layout,
- * and highlights the node whose `name` matches `current_node_name`.
+ * Live HFSM state-chart viewer powered by VueFlow.
+ *
+ * Reads /mw_hfsm_status.spec_json (a hierarchical spec produced by
+ * mw_hfsm_engine's spec_dumper — see future PR) and highlights the node
+ * whose dotted path equals `active_state`.
+ *
+ * Phase 1 behavior: the executor does not yet serialize its BehaviorSM
+ * into spec_json, so this view stays in a friendly empty state ("no SubJob
+ * dispatched") until that serializer lands.  The parser below already
+ * handles the JSON shape we'll emit, so when the serializer ships the
+ * render will work without further frontend changes.
+ *
+ * Expected spec_json shape (hierarchical):
+ *   {
+ *     "id": "VisitThreePoints",
+ *     "kind": "BehaviorSM" | "StateMachine" | "State",
+ *     "children": [
+ *        { "name": "GO_P1", "id": "Step", "kind": "StateMachine", "children": [...] },
+ *        ...
+ *     ]
+ *   }
  */
 import { computed, nextTick, watch } from 'vue';
 import { VueFlow, type Node, type Edge, useVueFlow } from '@vue-flow/core';
@@ -13,52 +31,50 @@ import { useRos } from '../composables/useRos';
 
 const { state } = useRos();
 
+interface SpecNode {
+  id?: string;
+  name?: string;
+  kind?: string;
+  children?: SpecNode[];
+}
+
 interface ParsedNode {
   id: string;
   label: string;
   children: ParsedNode[];
   depth: number;
   isLeaf: boolean;
-  nodeName: string; // BT "name" attribute for current-node matching
+  path: string; // dot-joined ancestor names
 }
 
-function parseBtXml(xml: string): ParsedNode | null {
-  if (!xml) return null;
-  const doc = new DOMParser().parseFromString(xml, 'application/xml');
-  const tree = doc.querySelector('BehaviorTree');
-  if (!tree) return null;
-
+function parseHfsmSpec(specJson: string): ParsedNode | null {
+  if (!specJson) return null;
+  let spec: SpecNode;
+  try {
+    spec = JSON.parse(specJson);
+  } catch {
+    return null;
+  }
   let counter = 0;
-  const walk = (el: Element, depth: number): ParsedNode => {
-    // Snapshot the id BEFORE recursing into children; otherwise the
-    // final counter (after all descendants walked) is what the closure
-    // sees, and every ancestor collides with its last-visited descendant.
+  const walk = (node: SpecNode, depth: number, parentPath: string): ParsedNode => {
     counter += 1;
     const id = `n${counter}`;
-    const children = Array.from(el.children)
-      .filter((c) => c.nodeType === 1)
-      .map((c) => walk(c, depth + 1));
-    const name = el.getAttribute('name') ?? '';
-    const tag = el.tagName;
-    const attrs = Array.from(el.attributes)
-      .filter((a) => a.name !== 'name')
-      .map((a) => `${a.name}=${a.value}`)
-      .join(' ');
-    const label = name
-      ? `${tag}: ${name}${attrs ? `\n${attrs}` : ''}`
-      : `${tag}${attrs ? `\n${attrs}` : ''}`;
+    const name = node.name ?? node.id ?? '<anon>';
+    const kind = node.kind ?? '';
+    const path = parentPath ? `${parentPath}.${name}` : name;
+    const rawChildren = node.children ?? [];
+    const children = rawChildren.map((c) => walk(c, depth + 1, path));
+    const label = kind ? `${kind}: ${name}` : name;
     return {
       id,
       label,
       children,
       depth,
       isLeaf: children.length === 0,
-      nodeName: name,
+      path,
     };
   };
-
-  const root = Array.from(tree.children).find((c) => c.nodeType === 1);
-  return root ? walk(root, 0) : null;
+  return walk(spec, 0, '');
 }
 
 function layout(root: ParsedNode) {
@@ -66,7 +82,6 @@ function layout(root: ParsedNode) {
   const edges: Edge[] = [];
   const xStep = 240;
   const yStep = 110;
-  // assign x by in-order traversal leaves-first, y by depth
   let cursor = 0;
   const positions = new Map<string, { x: number; y: number }>();
   const visit = (n: ParsedNode) => {
@@ -90,9 +105,9 @@ function layout(root: ParsedNode) {
     nodes.push({
       id: n.id,
       position: pos,
-      data: { label: n.label, nodeName: n.nodeName, isLeaf: n.isLeaf },
+      data: { label: n.label, path: n.path, isLeaf: n.isLeaf },
       type: 'default',
-      class: n.isLeaf ? 'bt-leaf' : 'bt-composite',
+      class: n.isLeaf ? 'hfsm-leaf' : 'hfsm-composite',
     });
     if (parent) {
       edges.push({
@@ -110,14 +125,14 @@ function layout(root: ParsedNode) {
 }
 
 const graph = computed(() => {
-  const root = parseBtXml(state.bt?.tree_xml ?? '');
+  const root = parseHfsmSpec(state.hfsm?.spec_json ?? '');
   return root ? layout(root) : { nodes: [] as Node[], edges: [] as Edge[] };
 });
 
 const elements = computed<(Node | Edge)[]>(() => [
   ...graph.value.nodes.map<Node>((n) => {
-    const active = state.bt?.current_node_name &&
-      (n.data as { nodeName?: string }).nodeName === state.bt.current_node_name;
+    const active = state.hfsm?.active_state &&
+      (n.data as { path?: string }).path === state.hfsm.active_state;
     return {
       ...n,
       style: {
@@ -139,18 +154,12 @@ const elements = computed<(Node | Edge)[]>(() => [
 
 const { fitView, onInit } = useVueFlow();
 
-// Fit once when VueFlow's internal store is ready (covers the case where
-// tree_xml arrives before the component finishes mounting).
 onInit(() => {
   setTimeout(() => fitView({ padding: 0.2, duration: 0 }), 20);
 });
 
-// Re-fit whenever the tree topology changes. flush:'post' delays until
-// DOM is updated; nextTick + double rAF gives VueFlow time to compute
-// its internal layout before we ask it to fit, otherwise fit sees zero
-// nodes and the viewport stays at its default (user sees empty canvas).
 watch(
-  () => state.bt?.tree_xml,
+  () => state.hfsm?.spec_json,
   async () => {
     await nextTick();
     requestAnimationFrame(() =>
@@ -167,10 +176,10 @@ watch(
   <section class="rounded-xl bg-panel/70 border border-slate-800 p-3">
     <div class="flex items-center justify-between mb-2">
       <h2 class="text-xs uppercase tracking-wider text-slate-400">
-        BT Tree (live)
+        HFSM State Chart (live)
       </h2>
-      <span v-if="!state.bt?.tree_xml" class="text-xs text-slate-500">
-        no tree loaded — dispatch a task
+      <span v-if="!state.hfsm?.spec_json" class="text-xs text-slate-500">
+        no SubJob running — dispatch one to populate
       </span>
     </div>
     <div class="bg-slate-950 rounded" style="height: 420px; width: 100%;">

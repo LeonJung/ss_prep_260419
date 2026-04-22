@@ -3,7 +3,7 @@
 # public URL at the end.
 #
 # Prereqs:
-#   - colcon build done (so mw_task_manager_node, foxglove_bridge reachable)
+#   - colcon build done (so hfsm_executor, foxglove_bridge reachable)
 #   - `source install/setup.bash` before running
 #   - node + npm installed
 #   - cloudflared installed
@@ -53,7 +53,7 @@ echo "[start_web_gui] logs -> $LOG_DIR"
 # both process names and bound ports so a half-killed prior session never
 # holds onto a resource we need.
 for pat in \
-  "mw_task_manager_node" "mw_bt_executor" "virtual_robot" \
+  "hfsm_executor" "mw_hfsm_executor" "virtual_robot" \
   "move_motor_server" "capture_image_server" "mw_skill_supervisor" \
   "mw_task_repository" "drive_to_pose_server" \
   "foxglove_bridge" "cloudflared" "dispatch_http" \
@@ -75,7 +75,7 @@ cleanup() {
     fi
   done
   sleep 1
-  pkill -9 -f "mw_task_manager_node|foxglove_bridge|virtual_robot|move_motor_server|capture_image_server|mw_skill_supervisor|mw_task_repository|rmw_zenohd" 2>/dev/null || true
+  pkill -9 -f "hfsm_executor|mw_hfsm_executor|foxglove_bridge|virtual_robot|move_motor_server|capture_image_server|mw_skill_supervisor|mw_task_repository|rmw_zenohd" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
@@ -115,7 +115,7 @@ fi
 VITE_PID=$!
 echo "[start_web_gui] vite PID=$VITE_PID"
 
-# 4. Dispatch HTTP bridge (Python): translates POST /dispatch -> ExecuteTask action
+# 4. Dispatch HTTP bridge (Python): translates POST /dispatch -> ExecuteSubJob action
 cat >"$LOG_DIR/dispatch_http.py" <<'PY'
 import json
 import os
@@ -127,28 +127,32 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 
-from mw_task_msgs.action import ExecuteTask
+from mw_task_msgs.action import ExecuteSubJob
 from mw_task_msgs.srv import ListTasks
 
 
 class DispatchNode(Node):
     def __init__(self) -> None:
         super().__init__('mw_web_dispatch_http')
-        self.cli = ActionClient(self, ExecuteTask, '/mw_task_manager/execute_task')
+        self.cli = ActionClient(
+            self, ExecuteSubJob, '/mw_task_manager/execute_sub_job')
         self.list_cli = self.create_client(
             ListTasks, '/mw_task_repository/list_tasks')
 
-    def send(self, task_id: str) -> tuple[bool, str]:
+    def send(self, subjob_id: str,
+             behavior_parameter: dict, userdata_in: dict) -> tuple[bool, str]:
         """Fire-and-forget: we ONLY need the action goal to leave the
         wire. Confirmation of acceptance can race with rclcpp_action's
         internal request map on fast loopback (same issue reported in
         memory/technical_gotchas.md), which would spuriously 500 the
-        HTTP caller. Observers follow live progress via /mw_bt_status,
+        HTTP caller. Observers follow live progress via /mw_hfsm_status,
         so returning as soon as the goal is sent is sufficient."""
         if not self.cli.wait_for_server(timeout_sec=3.0):
             return False, 'action server unavailable'
-        goal = ExecuteTask.Goal()
-        goal.task_id = task_id
+        goal = ExecuteSubJob.Goal()
+        goal.subjob_id = subjob_id
+        goal.behavior_parameter_json = json.dumps(behavior_parameter or {})
+        goal.userdata_in_json = json.dumps(userdata_in or {})
         self.cli.send_goal_async(goal)
         return True, 'dispatched'
 
@@ -203,12 +207,16 @@ class Handler(BaseHTTPRequestHandler):
         try:
             n = int(self.headers.get('Content-Length', '0'))
             body = json.loads(self.rfile.read(n) or b'{}')
-            task_id = body.get('task_id')
-            if not task_id:
-                self._json(400, {'error': 'missing task_id'})
+            # Accept both legacy 'task_id' and the new 'subjob_id' for
+            # backwards-friendliness while the frontend transitions.
+            subjob_id = body.get('subjob_id') or body.get('task_id')
+            if not subjob_id:
+                self._json(400, {'error': 'missing subjob_id'})
                 return
+            behavior_parameter = body.get('behavior_parameter') or {}
+            userdata_in = body.get('userdata_in') or {}
             assert node is not None
-            ok, msg = node.send(task_id)
+            ok, msg = node.send(subjob_id, behavior_parameter, userdata_in)
             self._json(200 if ok else 500, {'ok': ok, 'message': msg})
         except Exception as e:  # noqa: BLE001
             self._json(500, {'error': str(e)})

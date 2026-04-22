@@ -1,22 +1,23 @@
-"""TurtleBot3 Gazebo + long-lived task_manager + Web GUI bridge.
+"""TurtleBot3 Gazebo + long-lived HFSM executor + Web GUI bridge.
 
 Unlike web_gui.launch.py (which uses the virtual_robot emulator), this
 launch brings up the real TurtleBot3 empty_world simulation and wires
-the ExecuteTask action + /mw_bt_status publishers into foxglove_bridge
-so the Vue frontend can dispatch Jobs (e.g. visit_three_points) and
-watch the tree tick live while the robot actually drives in Gazebo.
+the ExecuteSubJob action + /mw_hfsm_status publishers into foxglove_bridge
+so the Vue frontend can dispatch SubJobs and watch the state chart tick
+live while the robot actually drives in Gazebo.
 
 No nav2 — the navigation control loop lives in
 mw_skill_library/drive_to_pose_server (our own P-controller).
 """
 
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+from ament_index_python.packages import get_package_share_directory
+import os
 
 
 def generate_launch_description():
@@ -27,6 +28,10 @@ def generate_launch_description():
     fg_port = DeclareLaunchArgument(
         'foxglove_port', default_value='8765',
         description='foxglove_bridge WebSocket port')
+    subjob_modules_arg = DeclareLaunchArgument(
+        'subjob_modules', default_value='[]',
+        description='List of Python modules registering SubJobs',
+    )
 
     tb3_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(tb3_empty_launch),
@@ -44,15 +49,15 @@ def generate_launch_description():
         }],
     )
 
-    task_manager = Node(
+    hfsm_executor = Node(
         package='mw_task_manager',
-        executable='mw_task_manager_node',
-        name='mw_bt_executor',
+        executable='hfsm_executor',
+        name='mw_hfsm_executor',
         output='screen',
         emulate_tty=True,
         parameters=[{
-            'tick_rate_hz': 10.0,
-            'groot_port': 1667,
+            'subjob_modules': LaunchConfiguration('subjob_modules'),
+            'status_publish_hz': 10.0,
         }],
     )
 
@@ -79,9 +84,10 @@ def generate_launch_description():
 
     return LaunchDescription([
         fg_port,
+        subjob_modules_arg,
         tb3_sim,
         drive_server,
-        task_manager,
+        hfsm_executor,
         repo,
         foxglove,
     ])
