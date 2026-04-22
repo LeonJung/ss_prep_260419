@@ -1,0 +1,68 @@
+"""BehaviorSM — the SubJob layer: robot-side top orchestration unit.
+
+A BehaviorSM is the dispatch entry point.  An external dispatcher (the ROS 2
+action bridge, in practice) constructs one, supplies a behavior_parameter
+dict plus userdata_in, calls `run()`, and receives (outcome, userdata_out).
+
+Structurally it IS a StateMachine — the only differences are:
+- declared `behavior_parameters` list (design-time contract with the dispatcher)
+- `run()` convenience that seeds userdata and returns userdata out
+
+Work / Job layers (MCS / RCS concepts) are intentionally NOT materialized
+here; they live on other PCs and only talk to us via the dispatch interface.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from .exceptions import HsmError
+from .state_machine import StateMachine
+from .userdata import Userdata
+
+
+class BehaviorSM(StateMachine):
+    """SubJob-level container.  Declared with a behavior_parameter contract."""
+
+    # Subclasses typically override behavior_parameters at the class level.
+    behavior_parameters: list[str] = []
+
+    def __init__(
+        self,
+        outcomes: list[str] | None = None,
+        initial_state: str | None = None,
+        behavior_parameters: list[str] | None = None,
+    ):
+        super().__init__(outcomes=outcomes, initial_state=initial_state)
+        if behavior_parameters is not None:
+            self.behavior_parameters = list(behavior_parameters)
+
+    def run(
+        self,
+        behavior_parameter: dict[str, Any] | None = None,
+        userdata_in: dict[str, Any] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Dispatch entry point.
+
+        Returns (outcome, userdata_out).  `outcome` is one of self.outcomes.
+        """
+        behavior_parameter = behavior_parameter or {}
+        userdata_in = userdata_in or {}
+
+        missing = [p for p in self.behavior_parameters if p not in behavior_parameter]
+        if missing:
+            raise HsmError(
+                f'{type(self).__name__}: missing behavior_parameter(s): {missing}'
+            )
+
+        # Seed userdata: behavior_parameter merged with userdata_in.
+        # behavior_parameter takes precedence (design-time fixed) — in practice
+        # the two key spaces shouldn't collide; if they do, that's a bug worth
+        # surfacing via this ordering.
+        seed: dict[str, Any] = {}
+        seed.update(userdata_in)
+        seed.update(behavior_parameter)
+        userdata = Userdata(seed)
+
+        outcome = self.execute(userdata)
+        return outcome, userdata.to_dict()
