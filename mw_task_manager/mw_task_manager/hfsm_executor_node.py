@@ -37,6 +37,7 @@ from mw_hfsm_engine import (
     BehaviorSM,
     HfsmError,
     StateRegistry,
+    active_path,
 )
 from mw_task_msgs.action import ExecuteSubJob
 from mw_task_msgs.msg import HfsmExecutionStatus
@@ -162,6 +163,19 @@ class HfsmExecutorNode(Node):
                 userdata_out={},
             )
 
+        # Serialize the SubJob spec once at dispatch time so the GUI gets
+        # the full chart on its next /mw_hfsm_status tick.
+        try:
+            spec = sm.to_spec()
+            spec_json = json.dumps(spec)
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().warn(
+                f'spec serialization failed (GUI chart will be empty): {exc}'
+            )
+            spec_json = ''
+        with self._status_lock:
+            self._current_spec_json = spec_json
+
         try:
             outcome, userdata_out = sm.run(
                 behavior_parameter=behavior_parameter,
@@ -182,6 +196,9 @@ class HfsmExecutorNode(Node):
                 if succeeded else HfsmExecutionStatus.STATUS_FAILURE
             )
             self._current_userdata_snapshot_json = json.dumps(userdata_out)
+            # Freeze a descriptive terminal state so the GUI keeps showing
+            # where the SubJob ended instead of flashing to empty.
+            self._current_active_state = f'{type(sm).__name__} → {outcome}'
 
         result.succeeded = succeeded
         result.outcome = outcome
@@ -240,11 +257,15 @@ class HfsmExecutorNode(Node):
     # Status publishing
     # ------------------------------------------------------------------
     def _publish_status(self) -> None:
+        # active_path() is read from the engine's thread-safe global slot
+        # outside the lock — it reflects whichever state's execute() is
+        # on the worker thread right now.
+        live_path = active_path()
         with self._status_lock:
             msg = HfsmExecutionStatus()
             msg.subjob_id = self._current_subjob_id
             msg.spec_json = self._current_spec_json
-            msg.active_state = self._current_active_state
+            msg.active_state = live_path if self._busy else self._current_active_state
             msg.userdata_snapshot_json = self._current_userdata_snapshot_json
             msg.status = self._current_status
             msg.start_time = self._start_time.to_msg()
