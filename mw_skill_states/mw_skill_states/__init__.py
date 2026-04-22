@@ -6,6 +6,12 @@ constructor that accepts either constants (waypoint-in-XML style) or
 defers to userdata keys (parametric pipeline style).
 """
 
+from .capture_image import CaptureImageState
 from .drive_to_pose import DriveToPoseState
+from .move_motor import MoveMotorState
 
-__all__ = ['DriveToPoseState']
+__all__ = [
+    'CaptureImageState',
+    'DriveToPoseState',
+    'MoveMotorState',
+]
