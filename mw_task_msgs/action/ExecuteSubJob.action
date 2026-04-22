@@ -1,0 +1,16 @@
+# Execute a stored SubJob by id.  The task_manager loads the HFSM spec from
+# the repository, runs it through the HFSM engine until completion, and
+# reports progress via feedback.  behavior_parameter and userdata_in are
+# JSON-encoded dicts passed through to the engine's BehaviorSM.run().
+
+string subjob_id                 # SubJob to run (key in the task repository)
+string behavior_parameter_json   # JSON dict, design-time params (mission-specific values)
+string userdata_in_json          # JSON dict, initial userdata (typically from upstream SubJob)
+---
+bool succeeded                   # true iff outcome is in SubJob's 'success' outcome set
+string outcome                   # final outcome string (e.g. 'done', 'failed', 'aborted')
+string message                   # human-readable details
+string userdata_out_json         # JSON dict, userdata at termination (chainable into next SubJob)
+---
+string active_state              # dot-separated path, e.g. "Root.Step1.SubStepA"
+float64 elapsed_sec

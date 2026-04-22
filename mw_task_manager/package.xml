@@ -2,25 +2,23 @@
 <package format="3">
   <name>mw_task_manager</name>
   <version>0.0.1</version>
-  <description>BT.CPP v4 executor node for mw Task Manager (SubStep/Step/SubJob/Job hierarchy)</description>
+  <description>HFSM executor node for mw Task Manager — runs SubJob specs through mw_hfsm_engine, serves ExecuteSubJob action, publishes HfsmExecutionStatus</description>
   <maintainer email="jung.ryuwoon@gmail.com">Ryuwoon Jung</maintainer>
   <license>Apache-2.0</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_python</buildtool_depend>
 
-  <depend>rclcpp</depend>
-  <depend>rclcpp_action</depend>
-  <depend>behaviortree_cpp</depend>
-  <depend>mw_skill_library</depend>
+  <depend>rclpy</depend>
+  <depend>mw_hfsm_engine</depend>
+  <depend>mw_hfsm_ros</depend>
   <depend>mw_task_msgs</depend>
-  <depend>nav2_msgs</depend>
-  <depend>geometry_msgs</depend>
 
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
-  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
 
   <export>
-    <build_type>ament_cmake</build_type>
+    <build_type>ament_python</build_type>
   </export>
 </package>
