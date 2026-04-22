@@ -15,6 +15,7 @@ from .state_machine import StateMachine
 from .behavior_sm import BehaviorSM
 from .parallel import Parallel, Region
 from .decorators import RetryDecorator
+from .spec_loader import build_from_spec
 
 __all__ = [
     'State',
@@ -30,4 +31,5 @@ __all__ = [
     'TransitionError',
     'RegistryError',
     'SelfIterationError',
+    'build_from_spec',
 ]
