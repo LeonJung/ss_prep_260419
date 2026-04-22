@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import observer as _observer
 from .exceptions import HfsmError
 from .state_machine import StateMachine
 from .userdata import Userdata
@@ -64,5 +65,19 @@ class BehaviorSM(StateMachine):
         seed.update(behavior_parameter)
         userdata = Userdata(seed)
 
-        outcome = self.execute(userdata)
+        # Root of the observer path is this BehaviorSM's class name.
+        _observer.reset_global_path()
+        parent_path = _observer.enter(type(self).__name__)
+        outcome: str | None = None
+        try:
+            outcome = self.execute(userdata)
+        finally:
+            _observer.exit(parent_path, outcome)
+            _observer.reset_global_path()
         return outcome, userdata.to_dict()
+
+    def to_spec(self) -> dict:
+        spec = super().to_spec()
+        spec['kind'] = 'BehaviorSM'
+        spec['behavior_parameters'] = list(self.behavior_parameters)
+        return spec

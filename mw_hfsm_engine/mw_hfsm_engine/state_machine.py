@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Union
 
+from . import observer as _observer
 from .exceptions import HfsmError, SelfIterationError, TransitionError
 from .state import State, StateRegistry
 from .userdata import Userdata
@@ -121,7 +122,12 @@ class StateMachine(State):
                 )
 
             child = self._children[current]
-            outcome = child.execute(userdata)
+            parent_path = _observer.enter(current)
+            outcome: str | None = None
+            try:
+                outcome = child.execute(userdata)
+            finally:
+                _observer.exit(parent_path, outcome)
             if outcome not in child.outcomes:
                 raise TransitionError(
                     f'child "{current}" returned outcome "{outcome}" '
@@ -157,3 +163,17 @@ class StateMachine(State):
 
     def initial(self) -> str | None:
         return self._initial_state
+
+    # ------------------------------------------------------------------ spec
+    def to_spec(self) -> dict:
+        return {
+            'kind': 'StateMachine',
+            'id': type(self).__name__,
+            'outcomes': list(self.outcomes),
+            'initial_state': self._initial_state,
+            'children': {
+                name: child.to_spec()
+                for name, child in self._children.items()
+            },
+            'transitions': self.transitions(),
+        }

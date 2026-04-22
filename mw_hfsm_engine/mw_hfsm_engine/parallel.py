@@ -78,6 +78,20 @@ class Parallel(State):
             for target in region.outcomes.values()
         })
 
+    def to_spec(self) -> dict:
+        return {
+            'kind': 'Parallel',
+            'policy': self.policy,
+            'outcomes': list(self.outcomes),
+            'regions': {
+                name: {
+                    'state': region.state.to_spec(),
+                    'outcomes': dict(region.outcomes),
+                }
+                for name, region in self.regions.items()
+            },
+        }
+
     def execute(self, userdata: Userdata) -> str:
         if self.policy == 'first_wins':
             return self._execute_first_wins(userdata)

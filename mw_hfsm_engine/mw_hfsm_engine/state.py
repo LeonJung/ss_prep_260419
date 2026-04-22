@@ -35,6 +35,20 @@ class State:
             f'{type(self).__name__}.execute not implemented'
         )
 
+    def to_spec(self) -> dict[str, Any]:
+        """Serialize to a spec dict compatible with build_from_spec.
+
+        Base leaf-State form: `{"kind": "State", "ref": "<class name>"}`.
+        Subclasses whose __init__ takes constructor args should override
+        and round-trip those args back into the spec so build_from_spec
+        can rebuild an equivalent instance.
+        """
+        return {
+            'kind': 'State',
+            'ref': type(self).__name__,
+            'outcomes': list(self.outcomes),
+        }
+
     def __repr__(self) -> str:
         return f'{type(self).__name__}(outcomes={self.outcomes})'
 

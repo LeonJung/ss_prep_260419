@@ -16,6 +16,7 @@ from .behavior_sm import BehaviorSM
 from .parallel import Parallel, Region
 from .decorators import RetryDecorator
 from .spec_loader import build_from_spec
+from .observer import active_path, install_observer
 
 __all__ = [
     'State',
@@ -32,4 +33,6 @@ __all__ = [
     'RegistryError',
     'SelfIterationError',
     'build_from_spec',
+    'active_path',
+    'install_observer',
 ]
