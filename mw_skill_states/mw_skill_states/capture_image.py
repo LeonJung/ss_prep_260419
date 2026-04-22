@@ -28,13 +28,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from mw_hfsm_engine import Userdata
+from mw_hfsm_engine import Userdata, register_state
 from mw_hfsm_ros import LifecycleAwareActionState
 from mw_task_msgs.action import CaptureImage
 
 from .move_motor import _require_str
 
 
+@register_state
 class CaptureImageState(LifecycleAwareActionState):
     """Invoke the capture_image action, lifecycle-aware."""
 

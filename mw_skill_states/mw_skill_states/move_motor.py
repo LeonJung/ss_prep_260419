@@ -26,11 +26,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from mw_hfsm_engine import Userdata
+from mw_hfsm_engine import Userdata, register_state
 from mw_hfsm_ros import LifecycleAwareActionState
 from mw_task_msgs.action import MoveMotor
 
 
+@register_state
 class MoveMotorState(LifecycleAwareActionState):
     """Invoke the move_motor action, lifecycle-aware."""
 
