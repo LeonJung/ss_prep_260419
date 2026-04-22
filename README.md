@@ -16,11 +16,13 @@ is the parent's responsibility* — no layer self-iterates.
 | `mw_hfsm_ros` | ROS 2 bridge: `LifecycleAwareActionState` base that calls a LifecycleNode action with lifecycle probing + recovery |
 | `mw_skill_library` | driver-level LifecycleNode action servers (`move_motor`, `capture_image`, `drive_to_pose` — a self-contained P-controller, no nav2) |
 | `mw_skill_states` | concrete HFSM `State` wrappers around each skill action (`DriveToPoseState`, `MoveMotorState`, `CaptureImageState`) |
-| `mw_task_manager` | `hfsm_executor` node: serves `ExecuteSubJob` action, publishes `/mw_hfsm_status`, resolves SubJob ids against the engine's StateRegistry |
+| `mw_hfsm_examples` | reference SubJobs (e.g. `VisitThreePoints`) wiring skill states into a full `BehaviorSM` |
+| `mw_task_manager` | `hfsm_executor` node: serves `ExecuteSubJob` action, publishes `/mw_hfsm_status` (with live `spec_json` + `active_state`), honors goal-cancel via the engine's `CancelToken` |
 | `mw_task_repository` | Git-backed spec CRUD (stores our JSON HFSM spec) + dispatch CLI |
 | `mw_skill_supervisor` | lifecycle watchdog that auto-configures + activates managed skill servers |
 | `mw_robot_emulator` | virtual robot with motor physics + fault injection (`/virtual_robot/inject_fault`) |
 | `mw_web_gui` | Vue 3 + VueFlow live monitor (`HfsmStateView`, `HfsmStatus`) + dispatch UI + cloudflared tunnel wrapper |
+| `mw_rcs_bridge` | Phase 5 stub: VDA5050-inspired REST bridge from a remote RCS to the local executor |
 | `mw_bringup` | launch files (emulator, navigate_test, demo) |
 
 ## Layer → package mapping
@@ -67,7 +69,8 @@ foxglove_bridge (8765); `start_web_gui.sh` prints a
 
 ```bash
 colcon test --packages-select \
-  mw_hfsm_engine mw_hfsm_ros mw_task_manager mw_skill_states
+  mw_hfsm_engine mw_hfsm_ros mw_task_manager \
+  mw_skill_states mw_hfsm_examples mw_rcs_bridge
 ```
 
 All unit tests run without a live ROS graph (action / lifecycle clients
@@ -80,10 +83,11 @@ are mocked at the wrapper layer).
 - Concrete SubSteps (DriveToPoseState / MoveMotorState / CaptureImageState) ✅
 - HFSM executor node (`hfsm_executor` in mw_task_manager) ✅
 - Web GUI topic / component migration to `/mw_hfsm_status` + `HfsmStateView` ✅
-- RCS bridge stub — pending
-- Executor-side spec serializer (populates `spec_json` in `/mw_hfsm_status`) — pending
-- Cooperative cancellation (Parallel region + goal cancel) — pending
-- Author-facing JSON/YAML SubJob examples + editor — pending
+- Executor-side spec serializer (publishes live `spec_json` + `active_state` on `/mw_hfsm_status`) ✅
+- Cooperative cancellation (CancelToken threaded through engine, Parallel region bail-out, LifecycleAwareActionState wait-loop polling, executor cancel_callback) ✅
+- Reference SubJob (`VisitThreePoints` in `mw_hfsm_examples`) ✅
+- RCS bridge Phase 5 stub (REST endpoints: `POST /order`, `POST /cancel`, `GET /state`) ✅
+- Author-facing JSON/YAML SubJob editor — pending
 
 Detailed design rationale (BT vs HFSM analysis, scenario walkthroughs,
 layer / iteration rules) lives in the private plan file at
