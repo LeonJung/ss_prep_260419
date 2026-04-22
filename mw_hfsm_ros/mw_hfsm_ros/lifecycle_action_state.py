@@ -36,6 +36,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from mw_hfsm_engine import State, Userdata
+from mw_hfsm_engine import cancel as _cancel
 
 
 class ActionOutcome:
@@ -240,11 +241,15 @@ class LifecycleAwareActionState(State):
         """Block until future.done(), returning its result (or None on timeout).
 
         Relies on an outer executor spinning the node to make callbacks fire.
+        Polls the cancel token between sleeps so the SubJob can abandon
+        a long action (and the executor can cancel the ROS 2 goal handle
+        via the handle it already holds from send_goal_async).
         """
         deadline = time.monotonic() + timeout_sec
         while not future.done():
             if time.monotonic() >= deadline:
                 return None
+            _cancel.raise_if_cancelled()
             time.sleep(self.poll_interval_sec)
         try:
             return future.result()

@@ -35,6 +35,8 @@ from rclpy.node import Node
 
 from mw_hfsm_engine import (
     BehaviorSM,
+    CancelledError,
+    CancelToken,
     HfsmError,
     StateRegistry,
     active_path,
@@ -64,6 +66,7 @@ class HfsmExecutorNode(Node):
         self._current_userdata_snapshot_json: str = '{}'
         self._start_time = self.get_clock().now()
         self._busy = False
+        self._current_cancel_token: CancelToken | None = None
 
         self._cb_group = ReentrantCallbackGroup()
 
@@ -125,9 +128,14 @@ class HfsmExecutorNode(Node):
     def _cancel_callback(
         self, goal_handle: ServerGoalHandle,
     ) -> CancelResponse:
-        # Cooperative cancel inside the engine is not yet wired.  We still
-        # accept cancel to be spec-compliant; the worker will check a flag
-        # only at SubJob boundaries for now.
+        # Flip the cooperative cancel token.  StateMachine.execute checks
+        # it between children and LifecycleAwareActionState polls it
+        # inside its future-wait loop, so the SubJob worker raises
+        # CancelledError at the next checkpoint.
+        with self._status_lock:
+            token = self._current_cancel_token
+        if token is not None:
+            token.request()
         return CancelResponse.ACCEPT
 
     def _execute_goal(
@@ -140,6 +148,7 @@ class HfsmExecutorNode(Node):
         behavior_parameter = _safe_json_loads(goal.behavior_parameter_json)
         userdata_in = _safe_json_loads(goal.userdata_in_json)
 
+        cancel_token = CancelToken()
         with self._status_lock:
             self._busy = True
             self._current_subjob_id = subjob_id
@@ -148,6 +157,7 @@ class HfsmExecutorNode(Node):
             self._current_userdata_snapshot_json = json.dumps(userdata_in)
             self._current_spec_json = ''  # populated once SubJob is built
             self._start_time = self.get_clock().now()
+            self._current_cancel_token = cancel_token
 
         self.get_logger().info(
             f'ExecuteSubJob: id={subjob_id!r} '
@@ -180,7 +190,26 @@ class HfsmExecutorNode(Node):
             outcome, userdata_out = sm.run(
                 behavior_parameter=behavior_parameter,
                 userdata_in=userdata_in,
+                cancel_token=cancel_token,
             )
+        except CancelledError:
+            result.succeeded = False
+            result.outcome = 'canceled'
+            result.message = 'SubJob canceled by client'
+            result.userdata_out_json = json.dumps({})
+            with self._status_lock:
+                self._busy = False
+                self._current_status = HfsmExecutionStatus.STATUS_FAILURE
+                self._current_userdata_snapshot_json = json.dumps({})
+                self._current_active_state = (
+                    f'{type(sm).__name__} → canceled'
+                )
+                self._current_cancel_token = None
+            self.get_logger().info(
+                f'ExecuteSubJob canceled: subjob_id={subjob_id!r}'
+            )
+            goal_handle.canceled()
+            return result
         except Exception as exc:  # noqa: BLE001
             return self._finish_failure(
                 goal_handle, result, subjob_id,
@@ -199,6 +228,7 @@ class HfsmExecutorNode(Node):
             # Freeze a descriptive terminal state so the GUI keeps showing
             # where the SubJob ended instead of flashing to empty.
             self._current_active_state = f'{type(sm).__name__} → {outcome}'
+            self._current_cancel_token = None
 
         result.succeeded = succeeded
         result.outcome = outcome

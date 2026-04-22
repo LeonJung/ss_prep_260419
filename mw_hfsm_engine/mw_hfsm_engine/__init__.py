@@ -17,6 +17,12 @@ from .parallel import Parallel, Region
 from .decorators import RetryDecorator
 from .spec_loader import build_from_spec
 from .observer import active_path, install_observer
+from .cancel import (
+    CancelledError,
+    CancelToken,
+    is_cancellation_requested,
+    raise_if_cancelled,
+)
 
 __all__ = [
     'State',
@@ -35,4 +41,8 @@ __all__ = [
     'build_from_spec',
     'active_path',
     'install_observer',
+    'CancelToken',
+    'CancelledError',
+    'is_cancellation_requested',
+    'raise_if_cancelled',
 ]

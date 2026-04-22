@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import cancel as _cancel
 from . import observer as _observer
 from .exceptions import HfsmError
 from .state_machine import StateMachine
@@ -42,6 +43,7 @@ class BehaviorSM(StateMachine):
         self,
         behavior_parameter: dict[str, Any] | None = None,
         userdata_in: dict[str, Any] | None = None,
+        cancel_token: _cancel.CancelToken | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Dispatch entry point.
 
@@ -65,6 +67,9 @@ class BehaviorSM(StateMachine):
         seed.update(behavior_parameter)
         userdata = Userdata(seed)
 
+        # Install the cancel token in the current context so every
+        # descendant State can poll it without parameter plumbing.
+        _cancel.install_token(cancel_token)
         # Root of the observer path is this BehaviorSM's class name.
         _observer.reset_global_path()
         parent_path = _observer.enter(type(self).__name__)
@@ -74,6 +79,7 @@ class BehaviorSM(StateMachine):
         finally:
             _observer.exit(parent_path, outcome)
             _observer.reset_global_path()
+            _cancel.install_token(None)
         return outcome, userdata.to_dict()
 
     def to_spec(self) -> dict:

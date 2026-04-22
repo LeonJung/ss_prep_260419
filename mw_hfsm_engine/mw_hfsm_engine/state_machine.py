@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Union
 
+from . import cancel as _cancel
 from . import observer as _observer
 from .exceptions import HfsmError, SelfIterationError, TransitionError
 from .state import State, StateRegistry
@@ -120,6 +121,11 @@ class StateMachine(State):
                     f'{type(self).__name__}: exceeded {visit_cap} child '
                     f'invocations — possible infinite transition loop'
                 )
+
+            # Early exit on cancel — prefer stopping between children
+            # over letting the next child start.  In-progress leaf States
+            # may additionally poll the token via is_cancellation_requested().
+            _cancel.raise_if_cancelled()
 
             child = self._children[current]
             parent_path = _observer.enter(current)

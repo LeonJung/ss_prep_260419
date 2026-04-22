@@ -30,6 +30,7 @@ import threading
 import time
 from dataclasses import dataclass
 
+from . import cancel as _cancel
 from .exceptions import HfsmError, TransitionError
 from .state import State
 from .userdata import Userdata
@@ -140,6 +141,12 @@ class Parallel(State):
                     return winner['value']
             if all(not t.is_alive() for t in threads):
                 break
+            # Cooperative cancel: bail out promptly if requested.  Losing
+            # region threads continue in the background (real stop requires
+            # the leaf State — typically LifecycleAwareActionState — to
+            # poll the token itself and exit its wait loop); the Parallel
+            # just stops blocking for them.
+            _cancel.raise_if_cancelled()
             time.sleep(self.poll_interval_sec)
 
         # All regions finished, nobody produced a mapped outcome.
