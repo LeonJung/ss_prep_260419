@@ -4,6 +4,7 @@ import ConnectionStatus from './components/ConnectionStatus.vue';
 import HfsmStatus from './components/HfsmStatus.vue';
 import HfsmStateView from './components/HfsmStateView.vue';
 import RobotState from './components/RobotState.vue';
+import SpecEditor from './components/SpecEditor.vue';
 import TaskList from './components/TaskList.vue';
 import { useRos } from './composables/useRos';
 
@@ -49,19 +50,20 @@ onMounted(() => {
     <ConnectionStatus />
   </header>
 
-  <main class="flex-1 overflow-auto p-3 md:p-4">
+  <main class="flex-1 overflow-auto p-4" style="min-width: 1280px;">
     <div
-      class="grid gap-3 md:gap-4 max-w-7xl mx-auto"
-      style="grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);"
+      class="grid gap-4 max-w-7xl mx-auto"
+      style="grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); min-width: 1200px;"
     >
-      <!-- left column: state chart fills width on md+, collapses on small -->
-      <div class="space-y-3 md:space-y-4 min-w-0">
+      <!-- left column: state chart + execution status -->
+      <div class="space-y-4 min-w-0">
         <HfsmStateView />
         <HfsmStatus />
       </div>
-      <!-- right column: task list + robot state -->
-      <aside class="space-y-3 md:space-y-4 min-w-0">
+      <!-- right column: task list + spec editor + robot state -->
+      <aside class="space-y-4 min-w-0">
         <TaskList :dispatch-url="dispatchUrl" />
+        <SpecEditor :dispatch-url="dispatchUrl" />
         <RobotState />
       </aside>
     </div>
@@ -69,9 +71,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-@media (max-width: 768px) {
-  main > div {
-    grid-template-columns: 1fr !important;
-  }
-}
+/* Force PC-sized layout even on phone viewports.  Phones scroll
+   horizontally rather than collapsing into a single column. */
 </style>

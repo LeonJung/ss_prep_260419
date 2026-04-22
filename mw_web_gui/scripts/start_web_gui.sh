@@ -128,7 +128,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 
 from mw_task_msgs.action import ExecuteSubJob
-from mw_task_msgs.srv import ListTasks
+from mw_task_msgs.srv import ListTasks, LoadTask, SaveTask
 
 
 class DispatchNode(Node):
@@ -138,6 +138,10 @@ class DispatchNode(Node):
             self, ExecuteSubJob, '/mw_task_manager/execute_sub_job')
         self.list_cli = self.create_client(
             ListTasks, '/mw_task_repository/list_tasks')
+        self.load_cli = self.create_client(
+            LoadTask, '/mw_task_repository/load_task')
+        self.save_cli = self.create_client(
+            SaveTask, '/mw_task_repository/save_task')
 
     def send(self, subjob_id: str,
              behavior_parameter: dict, userdata_in: dict) -> tuple[bool, str]:
@@ -156,27 +160,48 @@ class DispatchNode(Node):
         self.cli.send_goal_async(goal)
         return True, 'dispatched'
 
-    def list_tasks(self) -> tuple[bool, list, str]:
-        """Synchronously hit the repo's list_tasks service. Called from
-        the HTTP handler thread; rclpy spin_until_future_complete is
-        safe here because the main thread has its own rclpy.spin()."""
-        if not self.list_cli.wait_for_service(timeout_sec=3.0):
-            return False, [], 'list_tasks service unavailable'
-        req = ListTasks.Request()
-        fut = self.list_cli.call_async(req)
-        # Poll without hijacking the executor (spin_until_future_complete
-        # from a non-main thread would clash with the primary spin()).
-        deadline = 3.0
+    def _await(self, fut, timeout_sec=3.0):
+        """Poll future without hijacking the rclpy executor."""
         import time as _t
         t0 = _t.monotonic()
-        while not fut.done() and (_t.monotonic() - t0) < deadline:
+        while not fut.done() and (_t.monotonic() - t0) < timeout_sec:
             _t.sleep(0.02)
-        if not fut.done():
-            return False, [], 'list_tasks timeout'
-        resp = fut.result()
+        return fut.result() if fut.done() else None
+
+    def list_tasks(self) -> tuple[bool, list, str]:
+        if not self.list_cli.wait_for_service(timeout_sec=3.0):
+            return False, [], 'list_tasks service unavailable'
+        resp = self._await(self.list_cli.call_async(ListTasks.Request()))
         if resp is None:
-            return False, [], 'no response'
+            return False, [], 'list_tasks timeout'
         return True, list(resp.task_ids), 'ok'
+
+    def load_spec(self, subjob_id: str) -> tuple[bool, str, str]:
+        if not self.load_cli.wait_for_service(timeout_sec=3.0):
+            return False, '', 'load_task service unavailable'
+        req = LoadTask.Request()
+        req.task_id = subjob_id
+        resp = self._await(self.load_cli.call_async(req))
+        if resp is None:
+            return False, '', 'load_task timeout'
+        if not resp.success:
+            return False, '', resp.message or 'not found'
+        return True, resp.xml_content or '', 'ok'
+
+    def save_spec(self, subjob_id: str, spec_json: str,
+                  commit_message: str = '') -> tuple[bool, str]:
+        if not self.save_cli.wait_for_service(timeout_sec=3.0):
+            return False, 'save_task service unavailable'
+        req = SaveTask.Request()
+        req.task_id = subjob_id
+        req.xml_content = spec_json   # generic string payload; now holds JSON
+        req.commit_message = commit_message
+        resp = self._await(self.save_cli.call_async(req))
+        if resp is None:
+            return False, 'save_task timeout'
+        if not resp.success:
+            return False, resp.message or 'save failed'
+        return True, resp.message or 'ok'
 
 
 node: DispatchNode | None = None
@@ -189,26 +214,48 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == '/tasks':
+        if self.path == '/tasks' or self.path == '/specs':
             try:
                 assert node is not None
                 ok, ids, msg = node.list_tasks()
                 code = 200 if ok else 500
-                self._json(code, {'ok': ok, 'task_ids': ids, 'message': msg})
+                self._json(code, {
+                    'ok': ok,
+                    'subjob_ids': ids,
+                    'task_ids': ids,  # legacy name retained for the TaskList
+                    'message': msg,
+                })
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {'error': str(e)})
+            return
+        if self.path.startswith('/specs/'):
+            subjob_id = self.path[len('/specs/'):]
+            try:
+                assert node is not None
+                ok, body, msg = node.load_spec(subjob_id)
+                code = 200 if ok else 404
+                self._json(code, {
+                    'ok': ok, 'subjob_id': subjob_id,
+                    'spec_json': body, 'message': msg,
+                })
             except Exception as e:  # noqa: BLE001
                 self._json(500, {'error': str(e)})
             return
         self.send_error(404)
 
     def do_POST(self):
-        if self.path != '/dispatch':
-            self.send_error(404)
+        if self.path == '/dispatch':
+            self._handle_dispatch()
             return
+        if self.path == '/specs':
+            self._handle_save_spec()
+            return
+        self.send_error(404)
+
+    def _handle_dispatch(self):
         try:
             n = int(self.headers.get('Content-Length', '0'))
             body = json.loads(self.rfile.read(n) or b'{}')
-            # Accept both legacy 'task_id' and the new 'subjob_id' for
-            # backwards-friendliness while the frontend transitions.
             subjob_id = body.get('subjob_id') or body.get('task_id')
             if not subjob_id:
                 self._json(400, {'error': 'missing subjob_id'})
@@ -217,6 +264,39 @@ class Handler(BaseHTTPRequestHandler):
             userdata_in = body.get('userdata_in') or {}
             assert node is not None
             ok, msg = node.send(subjob_id, behavior_parameter, userdata_in)
+            self._json(200 if ok else 500, {'ok': ok, 'message': msg})
+        except Exception as e:  # noqa: BLE001
+            self._json(500, {'error': str(e)})
+
+    def _handle_save_spec(self):
+        try:
+            n = int(self.headers.get('Content-Length', '0'))
+            body = json.loads(self.rfile.read(n) or b'{}')
+            subjob_id = body.get('subjob_id')
+            spec = body.get('spec')   # dict OR string
+            commit_message = body.get('commit_message') or \
+                f'update {subjob_id}'
+            if not subjob_id or spec is None:
+                self._json(400, {
+                    'error': 'need subjob_id + spec (dict or JSON string)'
+                })
+                return
+            spec_json = (
+                spec if isinstance(spec, str) else json.dumps(spec)
+            )
+            # Cheap server-side validation: must parse + have a 'kind'.
+            try:
+                parsed = json.loads(spec_json)
+            except json.JSONDecodeError as e:
+                self._json(400, {'error': f'spec is not valid JSON: {e}'})
+                return
+            if not isinstance(parsed, dict) or 'kind' not in parsed:
+                self._json(400, {
+                    'error': 'spec must be an object with a "kind" field'
+                })
+                return
+            assert node is not None
+            ok, msg = node.save_spec(subjob_id, spec_json, commit_message)
             self._json(200 if ok else 500, {'ok': ok, 'message': msg})
         except Exception as e:  # noqa: BLE001
             self._json(500, {'error': str(e)})

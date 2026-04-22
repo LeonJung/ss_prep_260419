@@ -23,6 +23,7 @@ from __future__ import annotations
 import importlib
 import json
 import threading
+import time
 from typing import Any
 
 import rclpy
@@ -40,9 +41,11 @@ from mw_hfsm_engine import (
     HfsmError,
     StateRegistry,
     active_path,
+    build_from_spec,
 )
 from mw_task_msgs.action import ExecuteSubJob
 from mw_task_msgs.msg import HfsmExecutionStatus
+from mw_task_msgs.srv import LoadTask
 
 
 class HfsmExecutorNode(Node):
@@ -55,6 +58,8 @@ class HfsmExecutorNode(Node):
         self.declare_parameter('subjob_modules', [''])
         self.declare_parameter('default_action_name',
                                '/mw_task_manager/execute_sub_job')
+        self.declare_parameter('load_task_service',
+                               '/mw_task_repository/load_task')
 
         self._import_subjob_modules()
 
@@ -69,6 +74,14 @@ class HfsmExecutorNode(Node):
         self._current_cancel_token: CancelToken | None = None
 
         self._cb_group = ReentrantCallbackGroup()
+
+        # Client for the task repository — used as a fallback when a
+        # dispatch subjob_id isn't registered as a Python class.
+        self._load_task_cli = self.create_client(
+            LoadTask,
+            self.get_parameter('load_task_service').value,
+            callback_group=self._cb_group,
+        )
 
         self._status_pub = self.create_publisher(
             HfsmExecutionStatus, '/mw_hfsm_status', 10,
@@ -245,17 +258,73 @@ class HfsmExecutorNode(Node):
     # Construction / helpers
     # ------------------------------------------------------------------
     def _build_subjob(self, subjob_id: str) -> BehaviorSM:
-        klass = StateRegistry.resolve(subjob_id)
-        if not issubclass(klass, BehaviorSM):
-            raise HfsmError(
-                f'subjob_id {subjob_id!r} resolves to '
-                f'{klass.__name__}, which is not a BehaviorSM'
-            )
-        # Subclasses may or may not accept `node` — fall back gracefully.
+        # Preferred path: a Python class registered via @register_state.
         try:
-            return klass(node=self)
-        except TypeError:
-            return klass()
+            klass = StateRegistry.resolve(subjob_id)
+        except HfsmError:
+            klass = None
+        if klass is not None:
+            if not issubclass(klass, BehaviorSM):
+                raise HfsmError(
+                    f'subjob_id {subjob_id!r} resolves to '
+                    f'{klass.__name__}, which is not a BehaviorSM'
+                )
+            try:
+                return klass(node=self)
+            except TypeError:
+                return klass()
+
+        # Fallback: fetch a JSON spec from the task repository and build it.
+        sm = self._load_spec_from_repository(subjob_id)
+        if sm is not None:
+            return sm
+
+        raise HfsmError(
+            f'subjob_id {subjob_id!r} is neither in StateRegistry nor in '
+            f'the task repository'
+        )
+
+    def _load_spec_from_repository(self, subjob_id: str) -> BehaviorSM | None:
+        if not self._load_task_cli.wait_for_service(timeout_sec=2.0):
+            self.get_logger().warn(
+                'load_task service unavailable; skipping repository fallback'
+            )
+            return None
+        req = LoadTask.Request()
+        req.task_id = subjob_id
+        future = self._load_task_cli.call_async(req)
+
+        # Poll without spinning — the outer MultiThreadedExecutor is
+        # already spinning this node on a different thread, so the
+        # callback will complete the future.
+        deadline = time.monotonic() + 3.0
+        while not future.done():
+            if time.monotonic() >= deadline:
+                self.get_logger().warn(
+                    f'load_task timed out for {subjob_id!r}'
+                )
+                return None
+            time.sleep(0.02)
+        resp = future.result()
+        if resp is None or not resp.success:
+            msg = getattr(resp, 'message', '(no response)')
+            self.get_logger().warn(
+                f'load_task failed for {subjob_id!r}: {msg}'
+            )
+            return None
+        try:
+            spec = json.loads(resp.xml_content)
+        except json.JSONDecodeError as exc:
+            raise HfsmError(
+                f'repository entry {subjob_id!r} is not valid JSON: {exc}'
+            ) from exc
+        sm = build_from_spec(spec, node=self)
+        if not isinstance(sm, BehaviorSM):
+            raise HfsmError(
+                f'repository entry {subjob_id!r} builds a '
+                f'{type(sm).__name__}, not a BehaviorSM'
+            )
+        return sm
 
     def _finish_failure(
         self,
