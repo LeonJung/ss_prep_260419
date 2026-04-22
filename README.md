@@ -1,21 +1,38 @@
 # mw robot Task Manager — ROS 2 Jazzy source tree
 
-This repo holds the `src/` tree of a colcon workspace exploring a
-`SubStep → Step → SubJob → Job` task hierarchy. Primary orchestrator is
-BT.CPP v4; an HFSMBTH (FlexBE + BT hybrid) variant is under evaluation.
+This repo holds the `src/` tree of a colcon workspace implementing a
+robot-side Task Manager on a self-built **Hierarchical FSM** engine.
+The design models tasks as `SubJob → Step → SubStep` (robot-side layers;
+`Work` and `Job` concepts live upstream in MCS/RCS, on other PCs).  The
+guiding rule is *every layer is one invocation; iteration of children
+is the parent's responsibility* — no layer self-iterates.
 
 ## Packages
 
-| package | purpose |
+| package | role |
 |---|---|
-| `mw_task_msgs` | msg / srv / action definitions |
-| `mw_skill_library` | SubStep action servers (LifecycleNode) + BT leaf wrappers + P-controller `drive_to_pose_server` |
-| `mw_task_manager` | long-lived BT.CPP v4 executor exposing `ExecuteTask` action + `/mw_bt_status` |
-| `mw_task_repository` | Git-backed Task XML CRUD + dispatch CLI |
-| `mw_robot_emulator` | virtual robot with motor physics + fault injection + `/virtual_robot/inject_fault` service |
-| `mw_skill_supervisor` | lifecycle watchdog (auto-configure + activate skills) |
-| `mw_web_gui` | Vue 3 + VueFlow live monitor + dispatch UI + cloudflared tunnel wrapper |
-| `mw_bringup` | launch files + self_test harness |
+| `mw_task_msgs` | msg / srv / action definitions (`ExecuteSubJob`, `HfsmExecutionStatus`, skill actions) |
+| `mw_hfsm_engine` | pure-Python HFSM runtime: `State` / `StateMachine` / `BehaviorSM`, `Parallel`, `RetryDecorator`, `@register_state` registry, JSON/dict `build_from_spec` loader |
+| `mw_hfsm_ros` | ROS 2 bridge: `LifecycleAwareActionState` base that calls a LifecycleNode action with lifecycle probing + recovery |
+| `mw_skill_library` | driver-level LifecycleNode action servers (`move_motor`, `capture_image`, `drive_to_pose` — a self-contained P-controller, no nav2) |
+| `mw_skill_states` | concrete HFSM `State` wrappers around each skill action (`DriveToPoseState`, `MoveMotorState`, `CaptureImageState`) |
+| `mw_task_manager` | `hfsm_executor` node: serves `ExecuteSubJob` action, publishes `/mw_hfsm_status`, resolves SubJob ids against the engine's StateRegistry |
+| `mw_task_repository` | Git-backed spec CRUD (stores our JSON HFSM spec) + dispatch CLI |
+| `mw_skill_supervisor` | lifecycle watchdog that auto-configures + activates managed skill servers |
+| `mw_robot_emulator` | virtual robot with motor physics + fault injection (`/virtual_robot/inject_fault`) |
+| `mw_web_gui` | Vue 3 + VueFlow live monitor (`HfsmStateView`, `HfsmStatus`) + dispatch UI + cloudflared tunnel wrapper |
+| `mw_bringup` | launch files (emulator, navigate_test, demo) |
+
+## Layer → package mapping
+
+```
+SubJob   →  BehaviorSM  (mw_hfsm_engine)
+Step     →  StateMachine (mw_hfsm_engine)         ← internals may use Parallel / Retry
+SubStep  →  State (mw_hfsm_engine)
+              └─ LifecycleAwareActionState  (mw_hfsm_ros)
+                    └─ concrete: DriveToPoseState / MoveMotorState / ...  (mw_skill_states)
+                          └─ ROS 2 action server (mw_skill_library)   ← the actual driver
+```
 
 ## Place in a workspace
 
@@ -42,18 +59,32 @@ export LAUNCH=navigate
 bash src/mw_web_gui/scripts/start_web_gui.sh
 ```
 
-Stack exposes: Vite (5173), dispatch HTTP (5174), foxglove_bridge (8765).
-`start_web_gui.sh` prints a `https://*.trycloudflare.com` URL for remote access.
+The web stack exposes Vite (5173), dispatch HTTP (5174), and
+foxglove_bridge (8765); `start_web_gui.sh` prints a
+`https://*.trycloudflare.com` URL for remote access.
+
+## Test
+
+```bash
+colcon test --packages-select \
+  mw_hfsm_engine mw_hfsm_ros mw_task_manager mw_skill_states
+```
+
+All unit tests run without a live ROS graph (action / lifecycle clients
+are mocked at the wrapper layer).
 
 ## Status
 
-- Phase 1 — BT executor + dummy skills ✅
-- Phase 2 — Task repository + CLI ✅
-- Phase 2.5 — Virtual robot emulator ✅
-- Phase 3 — 3-layer Lifecycle Management + chaos test ✅
-- Phase 4 — Vue 3 Web GUI + cloudflared remote access ✅
-- Phase 5 — RCS bridge stub (pending)
-- Phase 6 — BT vs FlexBE (HFSMBTH) comparison — design discussion in progress
+- Engine core (State / StateMachine / BehaviorSM / Parallel / Retry / Registry / spec loader) ✅
+- ROS 2 integration (LifecycleAwareActionState) ✅
+- Concrete SubSteps (DriveToPoseState / MoveMotorState / CaptureImageState) ✅
+- HFSM executor node (`hfsm_executor` in mw_task_manager) ✅
+- Web GUI topic / component migration to `/mw_hfsm_status` + `HfsmStateView` ✅
+- RCS bridge stub — pending
+- Executor-side spec serializer (populates `spec_json` in `/mw_hfsm_status`) — pending
+- Cooperative cancellation (Parallel region + goal cancel) — pending
+- Author-facing JSON/YAML SubJob examples + editor — pending
 
-Detailed design rationale and BT-vs-FlexBE analysis live in the private plan
-file at `~/.claude/plans/floating-petting-charm.md`.
+Detailed design rationale (BT vs HFSM analysis, scenario walkthroughs,
+layer / iteration rules) lives in the private plan file at
+`~/.claude/plans/floating-petting-charm.md`.

@@ -13,9 +13,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(lifecycle_msgs REQUIRED)
-find_package(behaviortree_cpp REQUIRED)
 find_package(mw_task_msgs REQUIRED)
-find_package(nav2_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 
@@ -35,13 +33,9 @@ ament_target_dependencies(drive_to_pose_server
 install(TARGETS move_motor_server capture_image_server drive_to_pose_server
   DESTINATION lib/${PROJECT_NAME})
 
-# ---- Public headers (BT leaf wrappers, consumed by mw_task_manager) ----
-install(DIRECTORY include/ DESTINATION include)
-
-ament_export_include_directories(include)
 ament_export_dependencies(
   rclcpp rclcpp_action rclcpp_lifecycle lifecycle_msgs
-  behaviortree_cpp mw_task_msgs nav2_msgs geometry_msgs nav_msgs)
+  mw_task_msgs geometry_msgs nav_msgs)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
