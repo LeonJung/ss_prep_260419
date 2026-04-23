@@ -49,7 +49,12 @@ class DriveToPoseState(LifecycleAwareActionState):
 
     action_type = DriveToPose
     action_name = '/drive_to_pose'
-    server_node_name = 'drive_to_pose_server'
+    # drive_to_pose_server is currently a plain rclcpp::Node (not a
+    # LifecycleNode) because it owns raw /cmd_vel + /odom and has no
+    # managed state beyond "alive".  Skip the /get_state probe; if a
+    # future server becomes lifecycle-managed, override this attribute
+    # in a subclass or construct with server_node_name='drive_to_pose_server'.
+    server_node_name = None
 
     def __init__(
         self,

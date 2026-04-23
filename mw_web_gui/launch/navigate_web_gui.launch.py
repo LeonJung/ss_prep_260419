@@ -47,6 +47,12 @@ def generate_launch_description():
         parameters=[{
             'cmd_vel_topic': '/cmd_vel',
             'odom_topic': '/odom',
+            # Gazebo Harmonic + ROS 2 Jazzy publishes /cmd_vel as
+            # TwistStamped.  Keeping the default 'both' tries to also
+            # register a plain Twist publisher on the same topic, which
+            # aborts with an incompatible-type RCLError the moment
+            # Gazebo's bridge is alive.
+            'cmd_vel_format': 'twist_stamped',
         }],
     )
 
