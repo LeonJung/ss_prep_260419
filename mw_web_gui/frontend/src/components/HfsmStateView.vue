@@ -33,9 +33,9 @@ const { state } = useRos();
 
 interface SpecNode {
   id?: string;
-  name?: string;
+  ref?: string;
   kind?: string;
-  children?: SpecNode[];
+  children?: Record<string, SpecNode> | SpecNode[];
 }
 
 interface ParsedNode {
@@ -47,7 +47,7 @@ interface ParsedNode {
   path: string; // dot-joined ancestor names
 }
 
-function parseHfsmSpec(specJson: string): ParsedNode | null {
+function parseHfsmSpec(specJson: string, rootName: string): ParsedNode | null {
   if (!specJson) return null;
   let spec: SpecNode;
   try {
@@ -56,15 +56,36 @@ function parseHfsmSpec(specJson: string): ParsedNode | null {
     return null;
   }
   let counter = 0;
-  const walk = (node: SpecNode, depth: number, parentPath: string): ParsedNode => {
+  const walk = (
+    node: SpecNode, depth: number, parentPath: string, assignedName: string,
+  ): ParsedNode => {
     counter += 1;
     const id = `n${counter}`;
-    const name = node.name ?? node.id ?? '<anon>';
+    // For the root, use the assigned name (SubJob id).  For children,
+    // the dict key from the parent becomes the segment — see loop below.
+    const segment = assignedName;
     const kind = node.kind ?? '';
-    const path = parentPath ? `${parentPath}.${name}` : name;
-    const rawChildren = node.children ?? [];
-    const children = rawChildren.map((c) => walk(c, depth + 1, path));
-    const label = kind ? `${kind}: ${name}` : name;
+    const path = parentPath ? `${parentPath}.${segment}` : segment;
+
+    // Engine's to_spec emits children as a {name: spec} dict.  Legacy
+    // specs (or some future editors) may emit an array; accept both.
+    const raw = node.children;
+    const entries: Array<[string, SpecNode]> = !raw
+      ? []
+      : Array.isArray(raw)
+        ? raw.map((c, i) => [c.id || String(i), c])
+        : Object.entries(raw);
+    const children = entries.map(
+      ([name, child]) => walk(child, depth + 1, path, name),
+    );
+
+    // Build a label: "kind: name" for containers, "kind: ref" for leaves.
+    let label = segment;
+    if (kind === 'State' && node.ref) {
+      label = `${segment}\n↳ ${node.ref}`;
+    } else if (kind) {
+      label = `${kind}: ${segment}`;
+    }
     return {
       id,
       label,
@@ -74,7 +95,7 @@ function parseHfsmSpec(specJson: string): ParsedNode | null {
       path,
     };
   };
-  return walk(spec, 0, '');
+  return walk(spec, 0, '', rootName);
 }
 
 function layout(root: ParsedNode) {
@@ -125,7 +146,11 @@ function layout(root: ParsedNode) {
 }
 
 const graph = computed(() => {
-  const root = parseHfsmSpec(state.hfsm?.spec_json ?? '');
+  // Use the published subjob_id as the root segment so active_state paths
+  // (which start with the SubJob class name, e.g. "VisitThreePoints.GO_P1")
+  // line up with the nodes we render here.
+  const rootName = state.hfsm?.subjob_id || 'SubJob';
+  const root = parseHfsmSpec(state.hfsm?.spec_json ?? '', rootName);
   return root ? layout(root) : { nodes: [] as Node[], edges: [] as Edge[] };
 });
 

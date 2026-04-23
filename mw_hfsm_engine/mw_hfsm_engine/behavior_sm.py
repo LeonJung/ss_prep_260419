@@ -44,6 +44,7 @@ class BehaviorSM(StateMachine):
         behavior_parameter: dict[str, Any] | None = None,
         userdata_in: dict[str, Any] | None = None,
         cancel_token: _cancel.CancelToken | None = None,
+        root_name: str | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Dispatch entry point.
 
@@ -70,9 +71,11 @@ class BehaviorSM(StateMachine):
         # Install the cancel token in the current context so every
         # descendant State can poll it without parameter plumbing.
         _cancel.install_token(cancel_token)
-        # Root of the observer path is this BehaviorSM's class name.
+        # Root of the observer path is the caller-supplied name (so the
+        # executor can use the dispatched subjob_id), falling back to
+        # the BehaviorSM's class name for test and CLI callers.
         _observer.reset_global_path()
-        parent_path = _observer.enter(type(self).__name__)
+        parent_path = _observer.enter(root_name or type(self).__name__)
         outcome: str | None = None
         try:
             outcome = self.execute(userdata)

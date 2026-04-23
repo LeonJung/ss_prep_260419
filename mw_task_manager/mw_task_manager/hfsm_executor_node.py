@@ -204,6 +204,7 @@ class HfsmExecutorNode(Node):
                 behavior_parameter=behavior_parameter,
                 userdata_in=userdata_in,
                 cancel_token=cancel_token,
+                root_name=subjob_id,
             )
         except CancelledError:
             result.succeeded = False
@@ -240,7 +241,7 @@ class HfsmExecutorNode(Node):
             self._current_userdata_snapshot_json = json.dumps(userdata_out)
             # Freeze a descriptive terminal state so the GUI keeps showing
             # where the SubJob ended instead of flashing to empty.
-            self._current_active_state = f'{type(sm).__name__} → {outcome}'
+            self._current_active_state = f'{subjob_id} → {outcome}'
             self._current_cancel_token = None
 
         result.succeeded = succeeded
@@ -248,6 +249,11 @@ class HfsmExecutorNode(Node):
         result.message = 'ok' if succeeded else f'outcome={outcome}'
         result.userdata_out_json = json.dumps(userdata_out)
 
+        self.get_logger().info(
+            f'ExecuteSubJob done: subjob_id={subjob_id!r} '
+            f'outcome={outcome!r} succeeded={succeeded} '
+            f'userdata_out={userdata_out!r}'
+        )
         if succeeded:
             goal_handle.succeed()
         else:
